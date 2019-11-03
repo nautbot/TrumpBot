@@ -7,7 +7,7 @@ import re
 import discord
 from discord.ext.commands import Bot
 from discord.ext import commands, tasks
-# import POSifiedText
+import POSifiedText
 from twitter_scraper import get_tweets
 import markovify
 
@@ -110,53 +110,32 @@ async def on_ready():
     await asyncio.sleep(1)
 
 
+async def get_model_from_tweets(author):
+    try:
+        tweets = [t['text'] for t in get_tweets(author, pages=20)]
+        await asyncio.sleep(0.5)
+        text = '\n'.join(tweets)
+        await asyncio.sleep(0.5)
+        corpus = re.sub(r'http\S+', '', text, flags=re.MULTILINE)
+        await asyncio.sleep(0.5)
+        text_model = POSifiedText.spacyPOSifiedText(corpus)
+        # text_model = markovify.NewlineText(corpus)
+        print(author + ' text model built.')
+        await asyncio.sleep(0.5)
+        return text_model
+    except Exception as e:
+        print('background_loop : ', e)
+        pass
+
+
 @tasks.loop(hours=2.0, reconnect=True)
 async def twitter_task():
     global trump_text_model, bell_text_model, mcd_text_model
     await bot.wait_until_ready()
     await asyncio.sleep(5)
-    try:
-        tweets = [t['text'] for t in get_tweets('realDonaldTrump', pages=20)]
-        await asyncio.sleep(0.5)
-        text = '\n'.join(tweets)
-        await asyncio.sleep(0.5)
-        corpus = re.sub(r'http\S+', '', text, flags=re.MULTILINE)
-        await asyncio.sleep(0.5)
-        #trump_text_model = POSifiedText.spacyPOSifiedText(corpus)
-        trump_text_model = markovify.NewlineText(corpus)
-        print('Trump text model built.')
-        await asyncio.sleep(0.5)
-    except Exception as e:
-        print('background_loop : ', e)
-        pass
-    try:
-        tweets = [t['text'] for t in get_tweets('tacobell', pages=20)]
-        await asyncio.sleep(0.5)
-        text = '\n'.join(tweets)
-        await asyncio.sleep(0.5)
-        corpus = re.sub(r'http\S+', '', text, flags=re.MULTILINE)
-        await asyncio.sleep(0.5)
-        #bell_text_model = POSifiedText.spacyPOSifiedText(corpus)
-        bell_text_model = markovify.NewlineText(corpus)
-        print('Taco Bell text model built.')
-        await asyncio.sleep(0.5)
-    except Exception as e:
-        print('background_loop : ', e)
-        pass
-    try:
-        tweets = [t['text'] for t in get_tweets('McDonalds', pages=20)]
-        await asyncio.sleep(0.5)
-        text = '\n'.join(tweets)
-        await asyncio.sleep(0.5)
-        corpus = re.sub(r'http\S+', '', text, flags=re.MULTILINE)
-        await asyncio.sleep(0.5)
-        #mcd_text_model = POSifiedText.spacyPOSifiedText(corpus)
-        mcd_text_model = markovify.NewlineText(corpus)
-        print('McDonalds text model built.')
-        await asyncio.sleep(0.5)
-    except Exception as e:
-        print('background_loop : ', e)
-        pass
+    trump_text_model = get_model_from_tweets('realDonaldTrump')
+    bell_text_model = get_model_from_tweets('tacobell')
+    mcd_text_model = get_model_from_tweets('McDonalds')
 
 
 @bot.command(pass_context=True, name='potus')
@@ -218,8 +197,6 @@ async def berder(ctx):
 async def generate_reply(ctx, model):
     try:
         sentence = model.make_sentence(tries=100, retain_original=False)
-        sentence = sentence.replace("pic.twitter.com", "https://pic.twitter.com")
-        sentence = re.sub(r'http\S+', '', sentence, flags=re.MULTILINE)
         if sentence:
             await ctx.send('{0.author.mention} {1}'.format(ctx.message, sentence))
         else:
